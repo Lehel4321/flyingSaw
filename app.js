@@ -675,6 +675,8 @@
   /* ---------- export, sharing, reset ---------- */
   const embedded = (() => { try { return window.self !== window.top; } catch (e) { return true; } })();
   if (embedded) { $('copyLink').hidden = true; $('dlCsv').hidden = true; }
+  // A file:// link (single-file version, desktop app) only opens on this computer, so there is nothing to share.
+  if (location.protocol === 'file:') $('copyLink').hidden = true;
 
   function copyText(text, btn, done) {
     const orig = btn.textContent;

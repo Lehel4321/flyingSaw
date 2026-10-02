@@ -1,0 +1,83 @@
+name: build
+
+# Builds the single HTML file, the Windows exe and the installer on every push, then starts them on a
+# real Windows machine. Pushing a tag like v1.0.0 also publishes the three files as a GitHub release.
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: desktop/go.mod
+          cache-dependency-path: desktop/go.sum
+      - run: sudo apt-get update -q && sudo apt-get install -y -q nsis
+      - run: python3 build.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: flying-saw
+          path: dist/
+          if-no-files-found: error
+
+  windows-test:
+    needs: build
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: flying-saw
+          path: dist
+      - name: Start the exe
+        shell: pwsh
+        run: |
+          $p = Start-Process dist\FlyingSaw.exe -ArgumentList '--smoke', "$PWD\smoke-exe.json" -PassThru
+          if (-not $p.WaitForExit(90000)) { $p.Kill(); throw 'FlyingSaw.exe did not finish' }
+          python tools/check_smoke.py smoke-exe.json
+          if ($LASTEXITCODE) { throw "smoke test failed (exe exit code $($p.ExitCode))" }
+      - name: Install, start and uninstall
+        shell: pwsh
+        run: |
+          $dir = "$env:LOCALAPPDATA\Programs\FlyingSaw"
+          $p = Start-Process dist\FlyingSaw-Setup.exe -ArgumentList '/S' -PassThru
+          if (-not $p.WaitForExit(120000)) { throw 'installer did not finish' }
+          if (-not (Test-Path "$dir\FlyingSaw.exe")) { throw 'FlyingSaw.exe was not installed' }
+          if (-not (Test-Path "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Flying Saw Simulator.lnk")) { throw 'no Start menu shortcut' }
+          $key = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\FlyingSaw'
+          Get-ItemProperty $key | Select-Object DisplayName, DisplayVersion, EstimatedSize, InstallLocation | Format-List
+
+          $p = Start-Process "$dir\FlyingSaw.exe" -ArgumentList '--smoke', "$PWD\smoke-installed.json" -PassThru
+          if (-not $p.WaitForExit(90000)) { $p.Kill(); throw 'installed FlyingSaw.exe did not finish' }
+          python tools/check_smoke.py smoke-installed.json
+          if ($LASTEXITCODE) { throw 'smoke test of the installed exe failed' }
+
+          # The uninstaller copies itself to TEMP and returns at once, so wait for the files to go.
+          Start-Process "$dir\Uninstall.exe" -ArgumentList '/S'
+          for ($i = 0; $i -lt 60 -and (Test-Path "$dir\FlyingSaw.exe"); $i++) { Start-Sleep 1 }
+          if (Test-Path "$dir\FlyingSaw.exe") { throw 'uninstall left FlyingSaw.exe behind' }
+          if (Test-Path $key) { throw 'uninstall left the Apps & features entry behind' }
+          'Install, start and uninstall: ok'
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build, windows-test]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: flying-saw
+          path: dist
+      - run: gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --title "Flying Saw Simulator $GITHUB_REF_NAME" --generate-notes
+        env:
+          GH_TOKEN: ${{ github.token }}

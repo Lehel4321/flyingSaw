@@ -1,3 +1,6 @@
 node_modules/
 .DS_Store
 *.csv
+dist/
+desktop/FlyingSaw.html
+desktop/*.syso
