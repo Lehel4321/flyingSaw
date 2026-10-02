@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Flying Saw Simulator</title>
+<meta name="description" content="Cycle calculator and live simulation for a flying saw: synchronization, cut timing, carriage travel and motor torque.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Flying saw cycle calculator</h1>
+      <p class="sub">The carriage accelerates to line speed, the saw axis plunges and cuts while synchronized, then the carriage decelerates and returns home, all within the time one part length takes to pass. Change any value and everything recalculates.</p>
+    </div>
+    <div class="tools">
+      <button id="copyLink" type="button" title="Copy a link that opens this exact setup">Copy link</button>
+      <button id="reset" type="button">Reset to defaults</button>
+    </div>
+  </header>
+  <div id="fallback" class="fallback" hidden>
+    <label for="fallbackText" class="note">Copying is blocked here. Select the text below and copy it yourself.</label>
+    <textarea id="fallbackText" readonly></textarea>
+    <div class="tools"><button id="fallbackClose" type="button">Close</button></div>
+  </div>
+
+  <div class="layout">
+    <section class="summary" aria-label="Result">
+      <div id="verdict" class="verdict" aria-live="polite">
+        <span id="pill" class="pill"></span>
+        <div id="vmsg" class="big"></div>
+        <p id="vhint" class="hint"></p>
+        <ul id="checks" class="checks"></ul>
+      </div>
+      <div id="stats" class="stats"></div>
+
+      <div class="stage">
+        <canvas id="sim" data-h="250" aria-label="Animated side view of the carriage, saw blade and material"></canvas>
+        <div class="bar">
+          <button id="play" type="button" class="primary">Pause</button>
+          <select id="speed" aria-label="Playback speed">
+            <option value="1">Real time</option>
+            <option value="0.5">0.5× slow motion</option>
+            <option value="0.25">0.25× slow motion</option>
+            <option value="0.1">0.1× slow motion</option>
+            <option value="0.02">0.02× slow motion</option>
+          </select>
+          <input id="scrub" type="range" min="0" max="1000" step="1" value="0" aria-label="Position in the cycle">
+          <span id="tread" class="tread"></span>
+          <span id="parts" class="note"></span>
+          <span id="phase" class="phase"></span>
+        </div>
+        <p class="keys"><kbd>Space</kbd> play / pause · <kbd>←</kbd> <kbd>→</kbd> step · drag the slider or any chart to scrub</p>
+      </div>
+    </section>
+
+    <aside class="inputs" aria-labelledby="machineData">
+      <h2 id="machineData">Machine data</h2>
+      <div id="groups" class="groups"></div>
+    </aside>
+
+    <section class="detail" aria-label="Details">
+      <div class="card">
+        <div class="sechead">
+          <h2>Where the time goes</h2>
+          <span id="budgetNote" class="note"></span>
+        </div>
+        <div id="btrack" class="btrack"></div>
+        <div id="baxis" class="baxis"></div>
+        <div class="tablewrap">
+          <table class="phases">
+            <thead><tr><th scope="col">Phase</th><th scope="col">Axis</th><th scope="col">Time</th><th scope="col">Share of part time</th></tr></thead>
+            <tbody id="ptbody"></tbody>
+            <tfoot id="ptfoot"></tfoot>
+          </table>
+        </div>
+      </div>
+
+      <div class="sechead">
+        <h2>Motion over one cycle</h2>
+        <div class="tools">
+          <button id="copyCsv" type="button">Copy profile as CSV</button>
+          <button id="dlCsv" type="button">Download CSV</button>
+        </div>
+      </div>
+
+      <figure class="chart">
+        <figcaption class="chead"><h3>Carriage speed</h3><span id="ro1" class="readout"></span></figcaption>
+        <canvas id="chart1" data-h="200" tabindex="0" aria-label="Carriage speed over one cycle. Use left and right arrow keys to move the cursor."></canvas>
+        <div class="legend">
+          <span><i style="border-color:var(--accent)"></i>Carriage</span>
+          <span><i class="dash" style="border-color:var(--ref)"></i>Material</span>
+          <span><i style="border-color:var(--bad)"></i>Next part arrives</span>
+        </div>
+      </figure>
+
+      <figure class="chart">
+        <figcaption class="chead"><h3>Saw axis position</h3><span id="ro2" class="readout"></span></figcaption>
+        <canvas id="chart2" data-h="180" tabindex="0" aria-label="Blade depth over one cycle. Use left and right arrow keys to move the cursor."></canvas>
+        <div class="legend">
+          <span><i style="border-color:var(--accent)"></i>Blade depth</span>
+          <span><i class="dash" style="border-color:var(--ref)"></i>Material top</span>
+          <span><i style="border-color:var(--bad)"></i>Next part arrives</span>
+        </div>
+      </figure>
+
+      <figure class="chart">
+        <figcaption class="chead"><h3>Carriage motor torque</h3><span id="ro3" class="readout"></span></figcaption>
+        <canvas id="chart3" data-h="190" tabindex="0" aria-label="Carriage motor torque over one cycle. Use left and right arrow keys to move the cursor."></canvas>
+        <p id="torqueEmpty" class="note empty" hidden>Enter a moving mass or a motor inertia under <b>Carriage load</b> to see the motor torque.</p>
+        <div id="torqueLegend" class="legend">
+          <span><i style="border-color:var(--accent)"></i>Motor torque</span>
+          <span><i class="dash" style="border-color:var(--muted)"></i>RMS over the cycle</span>
+          <span><i class="dash" style="border-color:var(--bad)"></i>Motor limits (when entered)</span>
+        </div>
+      </figure>
+
+      <details class="model">
+        <summary>How the model works</summary>
+        <p>Every move is a time-optimal rest-to-rest profile. With the jerk limit at 0 it is the classic trapezoid (same acceleration up and down). With a jerk limit the acceleration ramps up and down linearly (7-segment S-curve), which makes every move a little longer.</p>
+        <ul>
+          <li><b>Max linear speed</b> = motor rpm ÷ gear ratio × travel per output revolution ÷ 60.</li>
+          <li>The carriage starts when the mark is one ramp distance behind it, so mark and blade line up exactly when line speed is reached.</li>
+          <li>While synchronized the saw axis makes three moves: rapid approach, cut at cutting feed, rapid retract over the full stroke. The carriage only decelerates once the blade is fully up.</li>
+          <li><b>Motor torque</b> = moving mass × acceleration × lead ÷ (2π × gear ratio), divided by the drive efficiency while motoring and multiplied by it while braking, plus motor and gearbox inertia × angular acceleration. RMS is taken over the full part time, including waiting.</li>
+          <li><b>Max line speed</b> and <b>shortest part</b> are searched so that every check (speed, cycle time, travel and, when entered, motor torque) still passes.</li>
+        </ul>
+        <p>Not included: friction and cutting forces, saw axis torque, PLC scan time, cam-table blending between moves, and servo following error. Leave some reserve.</p>
+      </details>
+    </section>
+  </div>
+</div>
+<script src="motion.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
