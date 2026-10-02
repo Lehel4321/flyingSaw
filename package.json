@@ -1,0 +1,10 @@
+{
+  "name": "flying-saw-simulator",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Cycle calculator and live simulation for a flying saw",
+  "scripts": {
+    "test": "node --test tests/motion.test.js",
+    "start": "python3 -m http.server 8000"
+  }
+}
