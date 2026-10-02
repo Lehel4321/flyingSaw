@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Flying Saw Simulator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  --bg:#dfe3e8; --panel:#f5f7f9; --ink:#14202b; --muted:#5b6876; --line:#c3cad2;
+  --accent:#0a5cad; --ok:#1f7a3a; --bad:#b3261e; --steel:#3a4653; --mat:#2e2f31; --matEdge:#55585c;
+  --mark:#f2b705; --rail:#9aa5b1; --sync:rgba(10,92,173,.12); --blade:#8c99a6;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#10161c; --panel:#18212a; --ink:#e4e9ee; --muted:#93a1af; --line:#2b3743;
+    --accent:#5aa7f0; --ok:#4cc46d; --bad:#ff6b5e; --steel:#c4ced8; --mat:#3b3d40; --matEdge:#707479;
+    --mark:#f2b705; --rail:#45525f; --sync:rgba(90,167,240,.14); --blade:#7f8c99;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#10161c; --panel:#18212a; --ink:#e4e9ee; --muted:#93a1af; --line:#2b3743;
+  --accent:#5aa7f0; --ok:#4cc46d; --bad:#ff6b5e; --steel:#c4ced8; --mat:#3b3d40; --matEdge:#707479;
+  --mark:#f2b705; --rail:#45525f; --sync:rgba(90,167,240,.14); --blade:#7f8c99;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;font-size:16px;line-height:1.45}
+main{max-width:980px;margin:0 auto;padding:20px 16px 40px}
+h1{font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-weight:700;font-size:2.1rem;line-height:1.05;margin:0 0 4px;letter-spacing:-.01em}
+.sub{color:var(--muted);margin:0 0 18px;max-width:70ch}
+.num{font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-weight:600;font-variant-numeric:tabular-nums}
+.verdict{background:var(--panel);border-left:6px solid var(--ok);padding:14px 16px;margin-bottom:14px}
+.verdict.bad{border-left-color:var(--bad)}
+.verdict .big{font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-size:1.6rem;font-weight:600;line-height:1.15}
+.verdict p{margin:6px 0 0;color:var(--muted)}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);margin-bottom:14px}
+.stat{background:var(--panel);padding:10px 12px}
+.stat .v{font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-size:1.55rem;font-weight:600;line-height:1.1}
+.stat .l{font-size:.85rem;color:var(--muted)}
+.stat.key .v{color:var(--accent)}
+.stage{background:var(--panel);border:1px solid var(--line);margin-bottom:14px}
+.stage canvas{display:block;width:100%}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 12px;border-top:1px solid var(--line)}
+.bar .phase{margin-left:auto;font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-size:1.1rem;font-weight:600}
+button,select{font:inherit;font-size:.95rem;padding:7px 12px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer;border-radius:2px}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+h2{font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-weight:600;font-size:1.3rem;margin:22px 0 8px}
+.groups{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
+fieldset{border:1px solid var(--line);background:var(--panel);margin:0;padding:10px 12px 12px}
+legend{font-weight:600;padding:0 4px}
+.row{display:grid;grid-template-columns:1fr 92px 46px;gap:8px;align-items:center;padding:4px 0}
+.row label{font-size:.93rem}
+.row input{width:100%;font:inherit;font-variant-numeric:tabular-nums;padding:5px 6px;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:2px;text-align:right}
+.row .u{font-size:.85rem;color:var(--muted)}
+.note{color:var(--muted);font-size:.9rem;max-width:75ch}
+.chartwrap{background:var(--panel);border:1px solid var(--line);overflow-x:auto}
+.legend{display:flex;gap:16px;flex-wrap:wrap;padding:8px 12px;font-size:.85rem;color:var(--muted);border-top:1px solid var(--line)}
+.legend i{display:inline-block;width:18px;height:3px;vertical-align:middle;margin-right:6px}
+@media (prefers-reduced-motion:reduce){ /* animation still available but starts paused */ }
+</style>
+</head>
+<body>
+<main>
+  <h1>Flying saw cycle calculator</h1>
+  <p class="sub">The carriage accelerates to line speed, the saw axis plunges and cuts while synchronized, then the carriage decelerates and returns home — all within the time one part length takes to pass. Change any value and everything recalculates.</p>
+
+  <div id="verdict" class="verdict"></div>
+  <div id="stats" class="stats"></div>
+
+  <div class="stage">
+    <canvas id="sim" height="230"></canvas>
+    <div class="bar">
+      <button id="play" type="button">Pause</button>
+      <select id="speed" aria-label="Playback speed">
+        <option value="1">Real time</option>
+        <option value="0.5">0.5× slow motion</option>
+        <option value="0.25">0.25× slow motion</option>
+        <option value="0.1">0.1× slow motion</option>
+      </select>
+      <span id="parts" class="note"></span>
+      <span id="phase" class="phase"></span>
+    </div>
+  </div>
+
+  <h2>Machine data</h2>
+  <div class="groups" id="groups"></div>
+
+  <h2>Carriage speed over one cycle</h2>
+  <div class="chartwrap">
+    <canvas id="chart" height="190"></canvas>
+    <div class="legend">
+      <span><i style="background:var(--accent)"></i>Carriage</span>
+      <span><i style="background:var(--mark)"></i>Material</span>
+      <span><i style="background:var(--bad)"></i>Part time limit</span>
+    </div>
+  </div>
+
+  <h2>Saw axis position over one cycle</h2>
+  <div class="chartwrap">
+    <canvas id="chart2" height="170"></canvas>
+    <div class="legend">
+      <span><i style="background:var(--accent)"></i>Blade depth</span>
+      <span><i style="background:var(--mark)"></i>Material top</span>
+      <span><i style="background:var(--bad)"></i>Part time limit</span>
+    </div>
+  </div>
+
+  <p class="note" style="margin-top:14px">Model: every move is a trapezoidal point-to-point profile (same acceleration for accel and decel). Max linear speed = motor rpm ÷ gear ratio × travel per output revolution. The saw axis makes three moves while synchronized: rapid approach, cut at cutting feed, rapid retract over the full stroke. The carriage only decelerates once the blade is fully up. Jerk limits, PLC scan time and servo following error are not included — leave some reserve.</p>
+</main>
+
+<script>
+const groups = [
+  ['Line', [
+    ['mpm','Material speed','m/min',18,0.5],
+    ['len','Part length','mm',500,10],
+  ]],
+  ['Cut', [
+    ['approach','Approach (blade up → material)','mm',20,1],
+    ['cutDist','Cutting distance (material + overtravel)','mm',60,1],
+    ['feed','Cutting feed','mm/s',150,5],
+    ['settle','Sync settle before cut','s',0.05,0.01],
+    ['dwell','Min. wait at home','s',0.05,0.01],
+  ]],
+  ['Carriage motor', [
+    ['cRpm','Motor max speed','rpm',3000,100],
+    ['cGear','Gear ratio','i',10,0.5],
+    ['cLead','Travel per output rev','mm/rev',100,1],
+    ['cAcc','Acceleration','mm/s²',500000,1000],
+    ['travel','Max carriage travel','mm',600,10],
+  ], 'cInfo'],
+  ['Saw axis motor', [
+    ['zRpm','Motor max speed','rpm',3000,100],
+    ['zGear','Gear ratio','i',1,0.5],
+    ['zLead','Travel per output rev','mm/rev',5,1],
+    ['zAcc','Acceleration','mm/s²',10000,500],
+  ], 'zInfo'],
+];
+const zeroOk = new Set(['settle','dwell','approach']);
+const p = {};
+const gEl = document.getElementById('groups');
+for (const [title, fields, info] of groups) {
+  const fs = document.createElement('fieldset');
+  fs.innerHTML = `<legend>${title}</legend>`;
+  for (const [k,label,unit,def,step] of fields) {
+    p[k] = def;
+    const row = document.createElement('div'); row.className='row';
+    row.innerHTML = `<label for="f_${k}">${label}</label><input id="f_${k}" type="number" inputmode="decimal" step="${step}" min="0" value="${def}"><span class="u">${unit}</span>`;
+    row.querySelector('input').addEventListener('input', e => {
+      const val = parseFloat(e.target.value);
+      if (isFinite(val) && (val > 0 || (zeroOk.has(k) && val >= 0))) { p[k] = val; e.target.style.borderColor=''; recompute(); }
+      else e.target.style.borderColor = 'var(--bad)';
+    });
+    fs.appendChild(row);
+  }
+  if (info) { const d=document.createElement('div'); d.id=info; d.className='note'; d.style.marginTop='6px'; fs.appendChild(d); }
+  gEl.appendChild(fs);
+}
+
+/* ---------- motion maths (mm, s) ---------- */
+function moveTime(S,vm,a){ if(S<=0) return 0; const s2=vm*vm/a; return S>=s2 ? S/vm+vm/a : 2*Math.sqrt(S/a); }
+function prof(u,S,vm,a){ // point-to-point trapezoid: {d, v}
+  if(S<=0) return {d:0,v:0};
+  const s2=vm*vm/a;
+  if (S>=s2){
+    const t1=vm/a, tc=(S-s2)/vm;
+    if(u<t1) return {d:.5*a*u*u, v:a*u};
+    if(u<t1+tc) return {d:.5*a*t1*t1+vm*(u-t1), v:vm};
+    const w=u-t1-tc; return {d:Math.min(S,.5*a*t1*t1+vm*tc+vm*w-.5*a*w*w), v:Math.max(0,vm-a*w)};
+  }
+  const vp=Math.sqrt(S*a), t1=vp/a;
+  if(u<t1) return {d:.5*a*u*u, v:a*u};
+  const w=u-t1; return {d:Math.min(S,S/2+vp*w-.5*a*w*w), v:Math.max(0,vp-a*w)};
+}
+function model(q){
+  const v=q.mpm*1000/60, P=q.len/v;
+  const vc=q.cRpm/q.cGear*q.cLead/60, ac=q.cAcc;
+  const vz=q.zRpm/q.zGear*q.zLead/60, az=q.zAcc;
+  const ta=v/ac, sa=v*v/(2*ac);
+  const feedEff=Math.min(q.feed,vz);
+  const A=q.approach, C=q.cutDist;
+  const tApp=moveTime(A,vz,az), tCut=moveTime(C,feedEff,az), tRet=moveTime(A+C,vz,az);
+  const ts=q.settle+tApp+tCut+tRet;
+  const Sof=t=>2*sa+v*t;
+  const Tof=t=>2*ta+t+moveTime(Sof(t),vc,ac)+q.dwell;
+  const S=Sof(ts), tret=moveTime(S,vc,ac), T=Tof(ts);
+  let tsTime=null;
+  if (Tof(0)<=P){ let lo=0,hi=P; for(let i=0;i<60;i++){const m=(lo+hi)/2; if(Tof(m)<=P) lo=m; else hi=m;} tsTime=lo; }
+  const tsTravel=(q.travel-2*sa)/v;
+  const tsLim = tsTime==null ? null : Math.min(tsTime, tsTravel);
+  const limitBy = tsTime!=null && tsTravel<tsTime ? 'travel' : 'time';
+  const okSpeed = v<=vc+1e-9;
+  let availCut=null, feedMin=null, feedImpossible=false;
+  if (okSpeed && tsLim!=null){
+    availCut = tsLim-q.settle-tApp-tRet;
+    if (availCut<=0 || moveTime(C,vz,az)>availCut) feedImpossible=true;
+    else { let lo=1e-3,hi=vz; for(let i=0;i<60;i++){const m=(lo+hi)/2; if(moveTime(C,m,az)<=availCut) hi=m; else lo=m;} feedMin=hi; }
+  } else feedImpossible=true;
+  const okTime=T<=P+1e-9, okTravel=S<=q.travel+1e-9;
+  return {v,P,vc,ac,vz,az,ta,sa,A,C,feedEff,tApp,tCut,tRet,ts,S,tret,T,tsLim:okSpeed?tsLim:null,availCut,feedMin,feedImpossible,limitBy,
+          okTime,okTravel,okSpeed,feedCapped:q.feed>vz,ok:okTime&&okTravel&&okSpeed,settle:q.settle};
+}
+function maxSpeed(q){
+  const ok = vmm => model({...q, mpm:vmm*60/1000}).ok;
+  let lo=0.5, hi=20000;
+  if(!ok(lo)) return null;
+  for(let i=0;i<60;i++){const m=(lo+hi)/2; if(ok(m)) lo=m; else hi=m;}
+  return lo*60/1000;
+}
+
+/* ---------- results ---------- */
+let M;
+const f = (x,d=2)=> x==null||!isFinite(x) ? '—' : x.toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
+function recompute(){
+  M = model(p);
+  const vmax = maxSpeed(p);
+  document.getElementById('cInfo').innerHTML = `Max linear speed: <b>${f(M.vc,0)} mm/s</b> (${f(M.vc*0.06,1)} m/min)`;
+  document.getElementById('zInfo').innerHTML = `Max linear speed: <b>${f(M.vz,0)} mm/s</b>` + (M.feedCapped?` — <span style="color:var(--bad)">cutting feed limited to this</span>`:'');
+  const vd = document.getElementById('verdict');
+  vd.className = 'verdict' + (M.ok ? '' : ' bad');
+  let msg, need;
+  if (!M.okSpeed) msg = `Can't synchronize — material runs at <span class="num">${f(M.v,0)} mm/s</span> but the carriage motor only reaches <span class="num">${f(M.vc,0)} mm/s</span>.`;
+  else if (M.ok) msg = `Works — your cycle needs <span class="num">${f(M.T,3)} s</span> of the <span class="num">${f(M.P,3)} s</span> available (${f((1-M.T/M.P)*100,0)} % reserve).`;
+  else if (!M.okTime) msg = `Too slow — your cycle needs <span class="num">${f(M.T,3)} s</span> but a part arrives every <span class="num">${f(M.P,3)} s</span>. Parts would come out ${f(M.v*M.T,0)} mm long.`;
+  else msg = `Carriage runs out of travel — it needs <span class="num">${f(M.S,0)} mm</span> but only has ${f(p.travel,0)} mm.`;
+  if (!M.okSpeed) need = `The carriage must be faster than the material. Lower the line speed below ${f(M.vc*0.06,1)} m/min or raise motor speed / change the gearing.`;
+  else if (M.feedMin) need = `Saw axis: approach ${f(M.tApp,3)} s + retract ${f(M.tRet,3)} s are fixed by the motor. That leaves <b>${f(M.availCut,3)} s</b> for the ${f(p.cutDist,0)} mm cut, so the cutting feed must be at least <b>${f(M.feedMin,0)} mm/s</b>${M.limitBy==='travel'?' (limited by carriage travel)':''}.`;
+  else need = `The saw axis can't finish in time even at its max speed of ${f(M.vz,0)} mm/s. Make the saw axis faster (rpm, gearing, lead, acceleration), shorten the approach, raise carriage speed, or cut longer parts.`;
+  vd.innerHTML = `<div class="big">${msg}</div><p>${need}</p>`;
+
+  const stats = [
+    ['key', M.feedMin?f(M.feedMin,0)+' mm/s':'—', 'Minimum cutting feed'],
+    ['', f(M.P,3)+' s', `Time per part (${f(60/M.P,1)} parts/min)`],
+    ['', f(M.tsLim,3)+' s', 'Max. time synchronized'],
+    ['', f(M.ts,3)+' s', 'Your saw cycle (incl. settle)'],
+    ['', f(M.S,0)+' mm', 'Carriage stroke needed'],
+    ['', vmax==null?'—':f(vmax,1)+' m/min', 'Max. line speed with your setup'],
+  ];
+  document.getElementById('stats').innerHTML = stats.map(([c,v,l])=>`<div class="stat ${c}"><div class="v">${v}</div><div class="l">${l}</div></div>`).join('');
+}
+
+/* ---------- axis states ---------- */
+function sawAt(u){ // u = time since sync start
+  const m=M, H=m.A+m.C;
+  if(u<m.settle) return {z:0, vz:0, ph:'Synchronized — settling'};
+  let w=u-m.settle;
+  if(w<m.tApp){const r=prof(w,m.A,m.vz,m.az); return {z:r.d, vz:r.v, ph:'Blade approaching'};}
+  w-=m.tApp;
+  if(w<m.tCut){const r=prof(w,m.C,m.feedEff,m.az); return {z:m.A+r.d, vz:r.v, ph:'Cutting'};}
+  w-=m.tCut;
+  if(w<m.tRet){const r=prof(w,H,m.vz,m.az); return {z:H-r.d, vz:-r.v, ph:'Blade retracting'};}
+  return {z:0, vz:0, ph:'Blade up'};
+}
+function carriageAt(tau){
+  const m=M, a=m.ac;
+  if(tau<m.ta) return {x:.5*a*tau*tau, vel:a*tau, ph:'Accelerating', z:0};
+  let u=tau-m.ta;
+  if(u<m.ts){ const s=sawAt(u); return {x:m.sa+m.v*u, vel:m.v, ph:s.ph, z:s.z}; }
+  u-=m.ts;
+  if(u<m.ta) return {x:m.sa+m.v*m.ts+m.v*u-.5*a*u*u, vel:m.v-a*u, ph:'Decelerating', z:0};
+  u-=m.ta;
+  if(u<m.tret){const r=prof(u,m.S,m.vc,m.ac); return {x:m.S-r.d, vel:-r.v, ph:'Returning home', z:0};}
+  return {x:0, vel:0, ph:'Waiting for next mark', z:0};
+}
+
+/* ---------- drawing ---------- */
+const sim=document.getElementById('sim'), chart=document.getElementById('chart'), chart2=document.getElementById('chart2');
+let css={};
+function readColors(){ const s=getComputedStyle(document.documentElement); for(const k of ['bg','panel','ink','muted','line','accent','ok','bad','steel','mat','matEdge','mark','rail','sync','blade']) css[k]=s.getPropertyValue('--'+k).trim(); }
+function fit(c){ const dpr=window.devicePixelRatio||1, w=c.clientWidth, h=parseInt(c.getAttribute('height')); c.width=w*dpr; c.height=h*dpr; c.style.height=h+'px'; const g=c.getContext('2d'); g.setTransform(dpr,0,0,dpr,0,0); return {g,w,h}; }
+let simCtx, chartCtx, chart2Ctx;
+function resize(){ simCtx=fit(sim); chartCtx=fit(chart); chart2Ctx=fit(chart2); }
+
+let simT=0, last=null, playing=!matchMedia('(prefers-reduced-motion: reduce)').matches;
+document.getElementById('play').textContent = playing?'Pause':'Play';
+let speedF=1;
+document.getElementById('play').onclick=e=>{playing=!playing;e.target.textContent=playing?'Pause':'Play';};
+document.getElementById('speed').onchange=e=>speedF=parseFloat(e.target.value);
+
+function drawSim(tau, Pa, c){
+  const {g,w,h}=simCtx, m=M;
+  g.clearRect(0,0,w,h);
+  const spacing=m.v*Pa;
+  const xmin=-m.sa-Math.min(spacing*.6, 400), xmax=Math.max(m.S,p.travel)+Math.min(spacing*.6,400);
+  const pad=14, sx=x=>pad+(x-xmin)/(xmax-xmin)*(w-2*pad);
+  const railY=40, matTop=120, matH=34, matBot=matTop+matH;
+
+  g.fillStyle=css.sync; g.fillRect(sx(m.sa),railY-12,sx(m.sa+m.v*m.ts)-sx(m.sa),matBot+20-(railY-12));
+  g.fillStyle=css.rail; g.fillRect(sx(-30),railY-3,sx(p.travel+30)-sx(-30),6);
+  g.strokeStyle=css.muted; g.lineWidth=1; g.setLineDash([3,3]);
+  g.beginPath(); g.moveTo(sx(0),railY-16); g.lineTo(sx(0),matBot+22); g.stroke();
+  g.strokeStyle=css.bad; g.beginPath(); g.moveTo(sx(p.travel),railY-16); g.lineTo(sx(p.travel),matBot+22); g.stroke();
+  g.setLineDash([]);
+  g.font='12px Barlow, system-ui, sans-serif'; g.fillStyle=css.muted; g.textAlign='center';
+  g.fillText('home',sx(0),matBot+36);
+  g.fillStyle=css.bad; g.fillText('travel limit',sx(p.travel),matBot+36);
+  g.fillStyle=css.accent; g.fillText('synchronized',(sx(m.sa)+sx(m.sa+m.v*m.ts))/2,railY-18);
+
+  g.fillStyle=css.mat; g.fillRect(0,matTop,w,matH);
+  g.fillStyle=css.matEdge; g.fillRect(0,matTop,w,2);
+  const cutDone = tau > m.ta+m.settle+m.tApp+m.tCut;
+  for(let k=-20;k<=20;k++){
+    const x=-m.sa+m.v*tau-k*spacing; if(x<xmin-50||x>xmax+50) continue;
+    const X=sx(x), isCut = k<0 || (k===0 && cutDone);
+    if(isCut){ g.fillStyle=css.panel; g.fillRect(X-2,matTop,4,matH); }
+    else { g.strokeStyle=css.mark; g.lineWidth=2; g.setLineDash([4,3]); g.beginPath(); g.moveTo(X,matTop-4); g.lineTo(X,matBot+4); g.stroke(); g.setLineDash([]); }
+  }
+  g.fillStyle=css.muted; g.textAlign='left'; g.fillText(`material ${f(p.mpm,1)} m/min →`,8,matBot+52);
+
+  const X=sx(c.x);
+  g.fillStyle=css.steel; g.fillRect(X-26,railY-10,52,20);
+  // blade: bottom edge goes from 30px above material, touches at end of approach, ends below material
+  const r=22, H=m.A+m.C, a=H>0?m.A/H:0, fr=H>0?Math.max(0,Math.min(1,c.z/H)):0;
+  let bottom;
+  if (a>0 && fr<a) bottom = (matTop-30) + (fr/a)*30;
+  else bottom = matTop + (a<1 ? (fr-a)/(1-a) : 1)*(matH+6);
+  if (a===0) bottom = (matTop-30) + fr*(matH+36);
+  const by=bottom-r;
+  g.fillRect(X-3,railY+10,6,Math.max(0,by-railY-10));
+  g.beginPath(); g.arc(X,by,r,0,Math.PI*2); g.fillStyle=css.blade; g.globalAlpha=.85; g.fill(); g.globalAlpha=1;
+  g.strokeStyle=css.steel; g.lineWidth=2; g.stroke();
+  const rot=simT*40;
+  g.beginPath(); for(let i=0;i<3;i++){const an=rot+i*2.094; g.moveTo(X,by); g.lineTo(X+Math.cos(an)*r*.8,by+Math.sin(an)*r*.8);} g.stroke();
+  g.fillStyle=css.ink; g.textAlign='center'; g.font='600 13px "Barlow Condensed", system-ui, sans-serif';
+  g.fillText(`${f(c.vel*60/1000,1)} m/min`, X, 14);
+}
+
+function axes(g,w,h,L,T,W,H){ g.strokeStyle=css.line; g.lineWidth=1; g.beginPath(); g.moveTo(L,T); g.lineTo(L,T+H); g.stroke(); }
+function timeTicks(g,h,Pa,tx){ g.fillStyle=css.muted; g.font='11px Barlow, system-ui, sans-serif'; g.textAlign='center'; for(let i=0;i<=5;i++){const t=Pa*i/5; g.fillText(f(t,2)+' s',tx(t),h-8);} }
+
+function drawChart(tau, Pa){
+  const {g,w,h}=chartCtx, m=M;
+  g.clearRect(0,0,w,h);
+  const L=46,R=10,T=12,B=26, W=w-L-R, H=h-T-B;
+  const vmaxY=Math.max(m.v,10)*1.15, vminY=-Math.max(m.vc,m.v)*1.1;
+  const tx=t=>L+t/Pa*W, vy=v=>T+(vmaxY-v)/(vmaxY-vminY)*H;
+  axes(g,w,h,L,T,W,H);
+  g.strokeStyle=css.line; g.beginPath(); g.moveTo(L,vy(0)); g.lineTo(L+W,vy(0)); g.stroke();
+  g.fillStyle=css.muted; g.font='11px Barlow, system-ui, sans-serif'; g.textAlign='right';
+  for(const v of [m.v,0,-Math.min(m.vc, -vminY)]){ g.fillText(f(v*60/1000,0),L-4,vy(v)+4); }
+  g.save(); g.translate(11,T+H/2); g.rotate(-Math.PI/2); g.textAlign='center'; g.fillText('m/min',0,0); g.restore();
+  timeTicks(g,h,Pa,tx);
+  g.strokeStyle=css.mark; g.setLineDash([5,4]); g.lineWidth=1.5;
+  g.beginPath(); g.moveTo(L,vy(m.v)); g.lineTo(L+W,vy(m.v)); g.stroke(); g.setLineDash([]);
+  g.strokeStyle=css.bad; g.lineWidth=1.5; g.beginPath(); g.moveTo(tx(m.P),T); g.lineTo(tx(m.P),T+H); g.stroke();
+  g.strokeStyle=css.accent; g.lineWidth=2.2; g.beginPath();
+  const N=600; for(let i=0;i<=N;i++){const t=Pa*i/N, c=carriageAt(t); i?g.lineTo(tx(t),vy(c.vel)):g.moveTo(tx(t),vy(c.vel));}
+  g.stroke();
+  g.strokeStyle=css.ink; g.globalAlpha=.5; g.lineWidth=1; g.beginPath(); g.moveTo(tx(tau),T); g.lineTo(tx(tau),T+H); g.stroke(); g.globalAlpha=1;
+}
+
+function drawChart2(tau, Pa){
+  const {g,w,h}=chart2Ctx, m=M;
+  g.clearRect(0,0,w,h);
+  const L=46,R=10,T=12,B=26, W=w-L-R, H=h-T-B;
+  const Ht=Math.max(m.A+m.C,1);
+  const tx=t=>L+t/Pa*W, zy=z=>T+z/Ht*H;   // down = deeper
+  axes(g,w,h,L,T,W,H);
+  g.fillStyle=css.muted; g.font='11px Barlow, system-ui, sans-serif'; g.textAlign='right';
+  for(const z of [0,m.A,Ht]) g.fillText(f(z,0),L-4,zy(z)+4);
+  g.save(); g.translate(11,T+H/2); g.rotate(-Math.PI/2); g.textAlign='center'; g.fillText('mm down',0,0); g.restore();
+  timeTicks(g,h,Pa,tx);
+  g.strokeStyle=css.mark; g.setLineDash([5,4]); g.lineWidth=1.5; g.beginPath(); g.moveTo(L,zy(m.A)); g.lineTo(L+W,zy(m.A)); g.stroke(); g.setLineDash([]);
+  g.strokeStyle=css.bad; g.beginPath(); g.moveTo(tx(m.P),T); g.lineTo(tx(m.P),T+H); g.stroke();
+  g.strokeStyle=css.accent; g.lineWidth=2.2; g.beginPath();
+  const N=600; for(let i=0;i<=N;i++){const t=Pa*i/N, c=carriageAt(t); i?g.lineTo(tx(t),zy(c.z)):g.moveTo(tx(t),zy(c.z));}
+  g.stroke();
+  g.strokeStyle=css.ink; g.globalAlpha=.5; g.lineWidth=1; g.beginPath(); g.moveTo(tx(tau),T); g.lineTo(tx(tau),T+H); g.stroke(); g.globalAlpha=1;
+}
+
+function frame(ts){
+  if(last==null) last=ts;
+  const dt=Math.min(0.1,(ts-last)/1000); last=ts;
+  if(playing) simT+=dt*speedF;
+  const Pa=Math.max(M.P, M.T);
+  const tau=simT%Pa;
+  const c=carriageAt(tau);
+  drawSim(tau,Pa,c); drawChart(tau,Pa); drawChart2(tau,Pa);
+  document.getElementById('phase').textContent=c.ph;
+  document.getElementById('parts').textContent=`${Math.floor(simT/Pa)} parts cut`;
+  requestAnimationFrame(frame);
+}
+
+readColors();
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',readColors);
+window.addEventListener('resize',resize);
+recompute(); resize();
+if(document.fonts) document.fonts.ready.then(resize);
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
