@@ -12,6 +12,8 @@
     return nf.format(Math.abs(x) < 0.5 * Math.pow(10, -d) ? 0 : x);
   };
   const ms = t => f(t * 1000, 1) + ' ms';
+  // ['a', 'b', 'c'] → 'a, b and c' (or 'a, b, c' with last = ', ')
+  const listText = (xs, last = ' and ') => xs.length < 2 ? xs.join('') : xs.slice(0, -1).join(', ') + last + xs[xs.length - 1];
   const num = (x, d) => `<span class="num">${f(x, d)}</span>`;
 
   /* ---------- machine data ---------- */
@@ -23,11 +25,13 @@
     ]],
     ['Cut', [
       ['approach', 'Approach', 'mm', 1, { zero: true, hint: 'blade up → material' }],
+      ['appSpeed', 'Approach speed', 'mm/s', 10, { zero: true, hint: '0 = saw axis max' }],
       ['cutDist', 'Cutting distance', 'mm', 1, { hint: 'material + overtravel' }],
       ['feed', 'Cutting feed', 'mm/s', 5],
+      ['retSpeed', 'Retract speed', 'mm/s', 10, { zero: true, hint: 'back up, 0 = saw axis max' }],
       ['settle', 'Sync settle before cut', 's', 0.01, { zero: true }],
       ['dwell', 'Min. wait at home', 's', 0.01, { zero: true }],
-    ]],
+    ], 'cutInfo'],
     ['Carriage drive', [
       ['cRpm', 'Motor max speed', 'rpm', 100],
       ['cGear', 'Gear ratio', 'i', 0.5],
@@ -148,8 +152,10 @@
     $('cInfo').innerHTML = speedInfo(M.vc, M.vcMotor, p.cVmax, true) + ' · ' +
       `acceleration ${f(cg, cg < 10 ? 2 : 1)} g${cg > 3 ? ' <span class="warn">(very high for a moving carriage)</span>' : ''} · ` +
       `ramp to line speed ${ms(M.ta)} over ${f(M.sa, 1)} mm`;
-    $('zInfo').innerHTML = speedInfo(M.vz, M.vzMotor, p.zVmax, false) + ` · acceleration ${f(g(M.az), 2)} g` +
-      (M.feedCapped ? ` · <span class="warn">cutting feed limited to ${f(M.vz, 0)} mm/s</span>` : '');
+    $('zInfo').innerHTML = speedInfo(M.vz, M.vzMotor, p.zVmax, false) + ` · acceleration ${f(g(M.az), 2)} g`;
+    const over = [M.appCapped && 'approach speed', M.feedCapped && 'cutting feed', M.retCapped && 'retract speed'].filter(Boolean);
+    $('cutInfo').innerHTML = `Blade speeds: approach <b>${f(M.vzApp, 0)}</b> · cut <b>${f(M.feedEff, 0)}</b> · retract <b>${f(M.vzRet, 0)}</b> mm/s` +
+      (over.length ? ` · <span class="warn">${listText(over)} ${over.length > 1 ? 'are' : 'is'} above the saw axis max, so ${f(M.vz, 0)} mm/s is used</span>` : '');
     $('tInfo').innerHTML = hasLoad()
       ? `Peak force <b>${f(M.forcePeak, 0)} N</b> · peak motor speed <b>${f(M.motorRpmPeak, 0)} rpm</b>`
       : 'Only used for the torque chart and the torque check.';
@@ -159,10 +165,12 @@
     const travelBound = !M.okTravel || M.limitBy === 'travel';
     const feedHint = () => {
       if (M.feedMin != null) {
-        return `Saw axis: approach ${f(M.tApp, 3)} s + retract ${f(M.tRet, 3)} s are fixed by the motor. That leaves <b>${f(M.availCut, 3)} s</b> ` +
+        return `Saw axis: approach ${f(M.tApp, 3)} s + retract ${f(M.tRet, 3)} s at their set speeds. That leaves <b>${f(M.availCut, 3)} s</b> ` +
           `for the ${f(p.cutDist, 0)} mm cut, so the cutting feed must be at least <b>${f(M.feedMin, 0)} mm/s</b>${M.limitBy === 'travel' ? ' (limited by carriage travel)' : ''}.`;
       }
-      return `The saw axis can't finish in time even at its max speed of ${f(M.vz, 0)} mm/s. Make the saw axis faster (${zLimited() ? 'speed limit, ' : ''}rpm, gearing, lead, acceleration), ` +
+      return `The cycle doesn't fit even when cutting at the saw axis max speed of ${f(M.vz, 0)} mm/s. Make the saw axis faster (${listText([
+        p.appSpeed > 0 && p.appSpeed < M.vz && 'approach speed', p.retSpeed > 0 && p.retSpeed < M.vz && 'retract speed',
+        zLimited() && 'speed limit', 'rpm', 'gearing', 'lead', 'acceleration'].filter(Boolean), ', ')}), ` +
         `shorten the approach, raise the carriage speed${travelBound ? ' or give the carriage more travel' : minLen ? `, or cut parts of at least ${f(minLen, 0)} mm` : ', or cut longer parts'}.`;
     };
     let level = 'bad', pill, msg, hint;

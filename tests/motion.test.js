@@ -95,7 +95,7 @@ test('jerk limit makes moves slower, never faster', () => {
 });
 
 test('both axes end the cycle where they started', () => {
-  for (const extra of [{}, { cJerk: 5e6, zJerk: 5e5 }, { mpm: 30, len: 2000, cAcc: 8000 }]) {
+  for (const extra of [{}, { cJerk: 5e6, zJerk: 5e5 }, { mpm: 30, len: 2000, cAcc: 8000 }, { appSpeed: 60, retSpeed: 90, zJerk: 5e5 }]) {
     const M = FS.model({ ...FS.DEFAULTS, ...extra });
     close(M.carriage.pEnd, 0, 1e-6, 'carriage home');
     close(M.saw.pEnd, 0, 1e-6, 'blade up');
@@ -173,4 +173,32 @@ test('speed limit in mm/s caps an axis below its motor speed', () => {
   assert.ok(Z.tApp > base.tApp && Z.tRet > base.tRet);
   assert.equal(Z.feedCapped, true);
   assert.equal(Z.feedEff, 100);
+});
+
+test('approach and retract speeds set the blade moves, capped at the saw axis max', () => {
+  const base = FS.model({ ...FS.DEFAULTS });
+  const M = FS.model({ ...FS.DEFAULTS, appSpeed: 80, retSpeed: 120 });
+  close(M.tApp, FS.moveTime(M.A, 80, M.az, M.jz), 1e-12, 'approach time');
+  close(M.tRet, FS.moveTime(M.A + M.C, 120, M.az, M.jz), 1e-12, 'retract time');
+  assert.ok(M.tApp > base.tApp && M.tRet > base.tRet);
+  assert.equal(M.tCut, base.tCut);
+  // the blade reaches but never exceeds the set speed in each move
+  const peak = { approach: 0, cut: 0, retract: 0 };
+  for (let i = 0, n = 20000; i <= n; i++) {
+    const s = FS.sampleProfile(M.saw, M.period * i / n);
+    if (s.tag in peak) peak[s.tag] = Math.max(peak[s.tag], Math.abs(s.v));
+  }
+  close(peak.approach, 80, 0.5, 'approach peak');
+  close(peak.cut, 150, 0.5, 'cut peak');
+  close(peak.retract, 120, 0.5, 'retract peak');
+  // speeds above what the saw axis can do are capped, by the motor or by its speed limit
+  const C = FS.model({ ...FS.DEFAULTS, appSpeed: 1000, retSpeed: 1000 });
+  assert.equal(C.vzApp, base.vz);
+  assert.equal(C.vzRet, base.vz);
+  assert.ok(C.appCapped && C.retCapped);
+  assert.equal(C.T, base.T);
+  const L = FS.model({ ...FS.DEFAULTS, zVmax: 100, appSpeed: 150, retSpeed: 50 });
+  assert.equal(L.vzApp, 100);
+  assert.equal(L.vzRet, 50);
+  assert.ok(L.appCapped && !L.retCapped);
 });

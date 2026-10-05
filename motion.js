@@ -14,7 +14,8 @@
     // line
     mpm: 18, len: 500,
     // cut
-    approach: 20, cutDist: 60, feed: 150, settle: 0.05, dwell: 0.05,
+    // saw axis speeds: approach and retract of 0 mean "as fast as the saw axis can"
+    approach: 20, appSpeed: 0, cutDist: 60, feed: 150, retSpeed: 0, settle: 0.05, dwell: 0.05,
     // carriage drive; a speed limit of 0 means only the motor speed limits the axis
     cRpm: 3000, cGear: 10, cLead: 100, cVmax: 0, cAcc: 500000, cJerk: 0, travel: 600,
     // saw axis drive
@@ -138,17 +139,19 @@
     const v = q.mpm * 1000 / 60;
     const P = q.len / v;
     const ta = rampTime(v, d.ac, d.jc), sa = v * ta / 2;
+    // Each blade speed is capped at the saw axis max speed (motor or speed limit).
     const feedEff = Math.min(q.feed, d.vz);
+    const vzApp = capped(d.vz, q.appSpeed), vzRet = capped(d.vz, q.retSpeed);
     const A = q.approach, C = q.cutDist;
-    const tApp = moveTime(A, d.vz, d.az, d.jz);
+    const tApp = moveTime(A, vzApp, d.az, d.jz);
     const tCut = moveTime(C, feedEff, d.az, d.jz);
-    const tRet = moveTime(A + C, d.vz, d.az, d.jz);
+    const tRet = moveTime(A + C, vzRet, d.az, d.jz);
     const ts = q.settle + tApp + tCut + tRet;
     const S = 2 * sa + v * ts;
     const tHome = moveTime(S, d.vc, d.ac, d.jc);
     const T = 2 * ta + ts + tHome + q.dwell;
     return {
-      ...d, v, P, ta, sa, feedEff, A, C, tApp, tCut, tRet, ts, S, tHome, T,
+      ...d, v, P, ta, sa, feedEff, vzApp, vzRet, A, C, tApp, tCut, tRet, ts, S, tHome, T,
       settle: q.settle, dwell: q.dwell,
       okSpeed: v <= d.vc + 1e-9, okTime: T <= P + 1e-9, okTravel: S <= q.travel + 1e-9,
     };
@@ -168,9 +171,9 @@
     return buildProfile([
       hold(m.ta, 'idle'),
       hold(m.settle, 'settle'),
-      ...moveSegs(m.A, m.vz, m.az, m.jz, 'approach'),
+      ...moveSegs(m.A, m.vzApp, m.az, m.jz, 'approach'),
       ...moveSegs(m.C, m.feedEff, m.az, m.jz, 'cut'),
-      ...moveSegs(-(m.A + m.C), m.vz, m.az, m.jz, 'retract'),
+      ...moveSegs(-(m.A + m.C), m.vzRet, m.az, m.jz, 'retract'),
       hold(Math.max(0, period - m.ta - m.ts), 'idle'),
     ]);
   }
@@ -253,6 +256,8 @@
       saw: sawProfile(M, M.period),
       tsLim, availCut, feedMin, limitBy,
       feedCapped: q.feed > M.vz,
+      appCapped: q.appSpeed > M.vz,
+      retCapped: q.retSpeed > M.vz,
       reserve: 1 - M.T / M.P,
       vRet,
       motorRpmPeak: rpm(Math.max(M.v, vRet)),

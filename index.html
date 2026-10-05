@@ -124,7 +124,7 @@
         <ul>
           <li><b>Max linear speed</b> = motor rpm ÷ gear ratio × travel per output revolution ÷ 60, or the axis speed limit in mm/s if you set a lower one.</li>
           <li>The carriage starts when the mark is one ramp distance behind it, so mark and blade line up exactly when line speed is reached.</li>
-          <li>While synchronized the saw axis makes three moves: rapid approach, cut at cutting feed, rapid retract over the full stroke. The carriage only decelerates once the blade is fully up.</li>
+          <li>While synchronized the saw axis makes three moves: approach at the approach speed, cut at the cutting feed, retract over the full stroke at the retract speed. None of them can be faster than the saw axis max speed. The carriage only decelerates once the blade is fully up.</li>
           <li><b>Motor torque</b> = moving mass × acceleration × lead ÷ (2π × gear ratio), divided by the drive efficiency while motoring and multiplied by it while braking, plus motor and gearbox inertia × angular acceleration. RMS is taken over the full part time, including waiting.</li>
           <li><b>Max line speed</b> and <b>shortest part</b> are searched so that every check (speed, cycle time, travel and, when entered, motor torque) still passes.</li>
         </ul>
