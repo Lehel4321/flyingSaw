@@ -48,7 +48,8 @@ Keyboard: `Space` play / pause, `←` `→` step through the cycle (`Shift` for 
 
 - Every move is a time-optimal rest-to-rest profile. With the jerk limit at 0 it is a trapezoid (same
   acceleration up and down). With a jerk limit it becomes a 7-segment S-curve.
-- Max linear speed = motor rpm ÷ gear ratio × travel per output revolution ÷ 60.
+- Max linear speed = motor rpm ÷ gear ratio × travel per output revolution ÷ 60. An optional speed
+  limit in mm/s per axis lowers it further (0 = no extra limit).
 - The carriage starts when the mark is one ramp distance behind it, so mark and blade line up exactly
   when line speed is reached. While synchronized, the saw axis makes three moves: approach, cut at
   cutting feed, retract over the full stroke. The carriage decelerates once the blade is fully up,

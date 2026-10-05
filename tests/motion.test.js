@@ -149,3 +149,28 @@ test('phase list adds up to the cycle time', () => {
     close(M.phases.reduce((s, p) => s + p.t, 0), M.T, 1e-12);
   }
 });
+
+test('speed limit in mm/s caps an axis below its motor speed', () => {
+  const base = FS.model({ ...FS.DEFAULTS });
+  // 0 and limits above the motor speed change nothing
+  for (const extra of [{ cVmax: 0, zVmax: 0 }, { cVmax: base.vcMotor + 100, zVmax: base.vzMotor + 1 }]) {
+    const M = FS.model({ ...FS.DEFAULTS, ...extra });
+    assert.equal(M.vc, base.vc);
+    assert.equal(M.vz, base.vz);
+    assert.equal(M.T, base.T);
+  }
+  // the carriage limit slows the return move and lowers the max line speed
+  const C = FS.model({ ...FS.DEFAULTS, cVmax: 350 });
+  assert.equal(C.vc, 350);
+  assert.equal(C.vcMotor, base.vcMotor);
+  assert.ok(C.tHome > base.tHome, 'return takes longer');
+  close(C.vRet, Math.min(350, base.vRet), 1e-9, 'return speed');
+  assert.ok(FS.maxLineSpeed({ ...FS.DEFAULTS, cVmax: 350 }) <= 350 * 0.06 + 1e-9);
+  assert.equal(FS.model({ ...FS.DEFAULTS, cVmax: 250 }).okSpeed, false, '18 m/min = 300 mm/s needs more than 250 mm/s');
+  // the saw axis limit slows approach and retract and caps the cutting feed
+  const Z = FS.model({ ...FS.DEFAULTS, zVmax: 100 });
+  assert.equal(Z.vz, 100);
+  assert.ok(Z.tApp > base.tApp && Z.tRet > base.tRet);
+  assert.equal(Z.feedCapped, true);
+  assert.equal(Z.feedEff, 100);
+});

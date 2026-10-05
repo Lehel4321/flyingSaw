@@ -32,6 +32,7 @@
       ['cRpm', 'Motor max speed', 'rpm', 100],
       ['cGear', 'Gear ratio', 'i', 0.5],
       ['cLead', 'Travel per output rev', 'mm/rev', 1],
+      ['cVmax', 'Speed limit', 'mm/s', 10, { zero: true, hint: '0 = motor limit only' }],
       ['cAcc', 'Acceleration', 'mm/s²', 1000],
       ['cJerk', 'Jerk limit', 'mm/s³', 100000, { zero: true, hint: '0 = no limit' }],
       ['travel', 'Max carriage travel', 'mm', 10],
@@ -40,6 +41,7 @@
       ['zRpm', 'Motor max speed', 'rpm', 100],
       ['zGear', 'Gear ratio', 'i', 0.5],
       ['zLead', 'Travel per output rev', 'mm/rev', 1],
+      ['zVmax', 'Speed limit', 'mm/s', 5, { zero: true, hint: '0 = motor limit only' }],
       ['zAcc', 'Acceleration', 'mm/s²', 500],
       ['zJerk', 'Jerk limit', 'mm/s³', 10000, { zero: true, hint: '0 = no limit' }],
     ], 'zInfo'],
@@ -115,6 +117,9 @@
   let M, vmax, minLen;
   const hasLoad = () => p.mass > 0 || p.inertia > 0;
   const torqueChecked = () => p.tRated > 0 || p.tPeak > 0;
+  // Is the axis held back by its speed limit rather than by the motor?
+  const cLimited = () => p.cVmax > 0 && p.cVmax < M.vcMotor;
+  const zLimited = () => p.zVmax > 0 && p.zVmax < M.vzMotor;
 
   function recompute() {
     M = FS.model(p);
@@ -129,13 +134,21 @@
     dirty = true;
   }
 
+  // "Max linear speed …" for an axis, saying whether the motor or the speed limit sets it.
+  function speedInfo(v, vMotor, limit, mpm) {
+    const s = `Max linear speed <b>${f(v, 0)} mm/s</b>` + (mpm ? ` (${f(v * 0.06, 1)} m/min)` : '');
+    if (!(limit > 0)) return s;
+    if (limit < vMotor) return s + `, set by your speed limit; the motor could reach ${f(vMotor, 0)} mm/s`;
+    return s + ` · <span class="warn">speed limit ${f(limit, 0)} mm/s is above what the motor reaches, so it has no effect</span>`;
+  }
+
   function renderInfo() {
     const g = a => a / 9806.65;
     const cg = g(M.ac);
-    $('cInfo').innerHTML = `Max linear speed <b>${f(M.vc, 0)} mm/s</b> (${f(M.vc * 0.06, 1)} m/min) · ` +
+    $('cInfo').innerHTML = speedInfo(M.vc, M.vcMotor, p.cVmax, true) + ' · ' +
       `acceleration ${f(cg, cg < 10 ? 2 : 1)} g${cg > 3 ? ' <span class="warn">(very high for a moving carriage)</span>' : ''} · ` +
       `ramp to line speed ${ms(M.ta)} over ${f(M.sa, 1)} mm`;
-    $('zInfo').innerHTML = `Max linear speed <b>${f(M.vz, 0)} mm/s</b> · acceleration ${f(g(M.az), 2)} g` +
+    $('zInfo').innerHTML = speedInfo(M.vz, M.vzMotor, p.zVmax, false) + ` · acceleration ${f(g(M.az), 2)} g` +
       (M.feedCapped ? ` · <span class="warn">cutting feed limited to ${f(M.vz, 0)} mm/s</span>` : '');
     $('tInfo').innerHTML = hasLoad()
       ? `Peak force <b>${f(M.forcePeak, 0)} N</b> · peak motor speed <b>${f(M.motorRpmPeak, 0)} rpm</b>`
@@ -149,14 +162,16 @@
         return `Saw axis: approach ${f(M.tApp, 3)} s + retract ${f(M.tRet, 3)} s are fixed by the motor. That leaves <b>${f(M.availCut, 3)} s</b> ` +
           `for the ${f(p.cutDist, 0)} mm cut, so the cutting feed must be at least <b>${f(M.feedMin, 0)} mm/s</b>${M.limitBy === 'travel' ? ' (limited by carriage travel)' : ''}.`;
       }
-      return `The saw axis can't finish in time even at its max speed of ${f(M.vz, 0)} mm/s. Make the saw axis faster (rpm, gearing, lead, acceleration), ` +
+      return `The saw axis can't finish in time even at its max speed of ${f(M.vz, 0)} mm/s. Make the saw axis faster (${zLimited() ? 'speed limit, ' : ''}rpm, gearing, lead, acceleration), ` +
         `shorten the approach, raise the carriage speed${travelBound ? ' or give the carriage more travel' : minLen ? `, or cut parts of at least ${f(minLen, 0)} mm` : ', or cut longer parts'}.`;
     };
     let level = 'bad', pill, msg, hint;
     if (!M.okSpeed) {
       pill = 'Cannot synchronize';
-      msg = `The material runs at ${num(M.v, 0)} mm/s but the carriage motor only reaches ${num(M.vc, 0)} mm/s.`;
-      hint = `Lower the line speed below <b>${f(M.vc * 0.06, 1)} m/min</b>, or raise the carriage motor speed, change the gear ratio or the travel per revolution.`;
+      msg = `The material runs at ${num(M.v, 0)} mm/s but the carriage ${cLimited() ? 'is limited to' : 'motor only reaches'} ${num(M.vc, 0)} mm/s.`;
+      hint = `Lower the line speed below <b>${f(M.vc * 0.06, 1)} m/min</b>, or ` + (cLimited()
+        ? `raise the carriage speed limit${M.v > M.vcMotor + 1e-9 ? ' and the motor speed, gear ratio or travel per revolution' : ''} (the motor itself reaches ${f(M.vcMotor, 0)} mm/s).`
+        : 'raise the carriage motor speed, change the gear ratio or the travel per revolution.');
     } else if (!M.okTime) {
       pill = 'Too slow';
       msg = `Your cycle needs ${num(M.T, 3)} s but a part arrives every ${num(M.P, 3)} s. Parts would come out ${num(M.v * M.T, 0)} mm long.`;

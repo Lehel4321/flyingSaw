@@ -15,10 +15,10 @@
     mpm: 18, len: 500,
     // cut
     approach: 20, cutDist: 60, feed: 150, settle: 0.05, dwell: 0.05,
-    // carriage drive
-    cRpm: 3000, cGear: 10, cLead: 100, cAcc: 500000, cJerk: 0, travel: 600,
+    // carriage drive; a speed limit of 0 means only the motor speed limits the axis
+    cRpm: 3000, cGear: 10, cLead: 100, cVmax: 0, cAcc: 500000, cJerk: 0, travel: 600,
     // saw axis drive
-    zRpm: 3000, zGear: 1, zLead: 5, zAcc: 10000, zJerk: 0,
+    zRpm: 3000, zGear: 1, zLead: 5, zVmax: 0, zAcc: 10000, zJerk: 0,
     // carriage load, only used for the torque check
     mass: 60, eff: 90, inertia: 0, tRated: 0, tPeak: 0,
   });
@@ -119,10 +119,16 @@
 
   /* ---------- the flying saw cycle ---------- */
 
+  // Max linear speed of an axis: what the motor reaches through the gearing, or the set speed limit
+  // [mm/s] if that is lower. A limit of 0 (or missing) means no extra limit.
+  const motorSpeed = (rpm, gear, lead) => rpm / gear * lead / 60;
+  const capped = (vMotor, vLimit) => (vLimit > 0 && vLimit < vMotor ? vLimit : vMotor);
+
   function drives(q) {
+    const vcMotor = motorSpeed(q.cRpm, q.cGear, q.cLead), vzMotor = motorSpeed(q.zRpm, q.zGear, q.zLead);
     return {
-      vc: q.cRpm / q.cGear * q.cLead / 60, ac: q.cAcc, jc: q.cJerk,
-      vz: q.zRpm / q.zGear * q.zLead / 60, az: q.zAcc, jz: q.zJerk,
+      vc: capped(vcMotor, q.cVmax), vcMotor, ac: q.cAcc, jc: q.cJerk,
+      vz: capped(vzMotor, q.zVmax), vzMotor, az: q.zAcc, jz: q.zJerk,
     };
   }
 

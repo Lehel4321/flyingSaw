@@ -122,7 +122,7 @@
         <summary>How the model works</summary>
         <p>Every move is a time-optimal rest-to-rest profile. With the jerk limit at 0 it is the classic trapezoid (same acceleration up and down). With a jerk limit the acceleration ramps up and down linearly (7-segment S-curve), which makes every move a little longer.</p>
         <ul>
-          <li><b>Max linear speed</b> = motor rpm ÷ gear ratio × travel per output revolution ÷ 60.</li>
+          <li><b>Max linear speed</b> = motor rpm ÷ gear ratio × travel per output revolution ÷ 60, or the axis speed limit in mm/s if you set a lower one.</li>
           <li>The carriage starts when the mark is one ramp distance behind it, so mark and blade line up exactly when line speed is reached.</li>
           <li>While synchronized the saw axis makes three moves: rapid approach, cut at cutting feed, rapid retract over the full stroke. The carriage only decelerates once the blade is fully up.</li>
           <li><b>Motor torque</b> = moving mass × acceleration × lead ÷ (2π × gear ratio), divided by the drive efficiency while motoring and multiplied by it while braking, plus motor and gearbox inertia × angular acceleration. RMS is taken over the full part time, including waiting.</li>
