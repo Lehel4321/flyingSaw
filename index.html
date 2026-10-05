@@ -17,10 +17,14 @@
       <p class="sub">The carriage accelerates to line speed, the saw axis plunges and cuts while synchronized, then the carriage decelerates and returns home, all within the time one part length takes to pass. Change any value and everything recalculates.</p>
     </div>
     <div class="tools">
+      <button id="importProject" type="button" title="Open a saved project file (Ctrl+O)">Import project</button>
+      <button id="exportProject" type="button" title="Save the machine data to a project file (Ctrl+S)">Export project</button>
+      <input id="projectFile" type="file" accept=".json,application/json" hidden>
       <button id="copyLink" type="button" title="Copy a link that opens this exact setup">Copy link</button>
       <button id="reset" type="button">Reset to defaults</button>
     </div>
   </header>
+  <p id="projectStatus" class="status" role="status" hidden></p>
   <div id="fallback" class="fallback" hidden>
     <label for="fallbackText" class="note">Copying is blocked here. Select the text below and copy it yourself.</label>
     <textarea id="fallbackText" readonly></textarea>
@@ -134,6 +138,7 @@
   </div>
 </div>
 <script src="motion.js"></script>
+<script src="project.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

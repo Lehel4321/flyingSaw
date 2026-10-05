@@ -168,13 +168,25 @@ func smokeTest(w webview2.WebView, out string) {
     const $ = id => document.getElementById(id);
     let storage = false;
     try { localStorage.setItem('smoke', '1'); storage = localStorage.getItem('smoke') === '1'; localStorage.removeItem('smoke'); } catch (e) {}
-    flyingSawSmoke(JSON.stringify({
+    const report = {
       pill: $('pill').textContent, msg: $('vmsg').textContent,
       inputs: document.querySelectorAll('#groups input').length,
       copyLinkHidden: $('copyLink').hidden, protocol: location.protocol, storage,
       fonts: document.fonts.check('600 20px "Barlow Condensed"') && document.fonts.check('400 16px Barlow'),
+      projectButtons: !$('importProject').hidden && !$('exportProject').hidden,
+      saveDialog: typeof window.showSaveFilePicker === 'function',
       width: innerWidth, dpr: devicePixelRatio, errors,
-    }));
+    };
+    // Import a project the way a dropped file arrives, then put the defaults back.
+    const dt = new DataTransfer();
+    dt.items.add(new File([JSON.stringify({ type: 'flying-saw-project', format: 1, params: { mpm: 12.5, len: 800 } })], 'smoke.json'));
+    document.dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true }));
+    setTimeout(() => {
+      report.importedMpm = Number($('f_mpm').value);
+      report.importStatus = $('projectStatus').textContent;
+      $('reset').click();
+      flyingSawSmoke(JSON.stringify(report));
+    }, 500);
   }, 1500));
 })();`)
 	go func() {

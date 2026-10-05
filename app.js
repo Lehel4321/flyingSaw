@@ -2,6 +2,7 @@
 (function () {
   'use strict';
   const FS = window.FlyingSaw;
+  const FSP = window.FlyingSawProject;
   const $ = id => document.getElementById(id);
 
   /* ---------- formatting ---------- */
@@ -59,7 +60,7 @@
   ];
 
   const SPEC = {};
-  for (const [, fields] of GROUPS) for (const [k, label, unit, step, o] of fields) SPEC[k] = { label, unit, step, ...o };
+  for (const [group, fields] of GROUPS) for (const [k, label, unit, step, o] of fields) SPEC[k] = { group, label, unit, step, ...o };
   const valid = (k, x) => Number.isFinite(x) && (x > 0 || (SPEC[k].zero && x === 0)) && !(SPEC[k].max != null && x > SPEC[k].max);
   const invalidMsg = k => SPEC[k].max != null ? `Enter a value above 0 and up to ${SPEC[k].max}.` : SPEC[k].zero ? 'Enter 0 or a positive number.' : 'Enter a number greater than 0.';
 
@@ -720,19 +721,102 @@
     return rows.join('\n') + '\n';
   }
   $('copyCsv').addEventListener('click', e => copyText(csvText(), e.currentTarget, 'CSV copied'));
-  $('dlCsv').addEventListener('click', () => {
-    const url = URL.createObjectURL(new Blob([csvText()], { type: 'text/csv' }));
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `flying-saw_${p.mpm}mpm_${p.len}mm.csv`;
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  });
+  $('dlCsv').addEventListener('click', () => download(csvText(), `flying-saw_${p.mpm}mpm_${p.len}mm.csv`, 'text/csv'));
   $('copyLink').addEventListener('click', e => { persist(); copyText(location.href, e.currentTarget, 'Link copied'); });
-  $('reset').addEventListener('click', () => {
-    Object.assign(p, FS.DEFAULTS);
+
+  function setAll(values) {
+    Object.assign(p, FS.DEFAULTS, values);
     for (const k in inputs) { inputs[k].value = p[k]; inputs[k].removeAttribute('aria-invalid'); inputs[k].title = ''; markChanged(k); }
     recompute();
+  }
+  $('reset').addEventListener('click', () => { projectName = null; setAll({}); });
+
+  /* ---------- project files ---------- */
+  let projectName = null;   // file name (without .json) of the last opened or saved project
+  let statusTimer = 0;
+  function showStatus(html, isError) {
+    const el = $('projectStatus');
+    el.innerHTML = html;
+    el.classList.toggle('err', !!isError);
+    el.hidden = false;
+    clearTimeout(statusTimer);
+    statusTimer = setTimeout(() => { el.hidden = true; }, isError ? 15000 : 6000);
+  }
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+  const stem = name => name.replace(/\.json$/i, '');
+
+  function download(text, name, type) {
+    const url = URL.createObjectURL(new Blob([text], { type }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  // Uses the system "Save as" dialog where the browser offers one (Chrome, Edge, the Windows program),
+  // otherwise a normal download.
+  async function exportProject() {
+    const text = JSON.stringify(FSP.toProject(p, Object.keys(SPEC)), null, 2) + '\n';
+    const name = (projectName || `flying-saw_${p.mpm}mpm_${p.len}mm`) + '.json';
+    if (typeof window.showSaveFilePicker === 'function') {
+      try {
+        const handle = await window.showSaveFilePicker({
+          suggestedName: name,
+          types: [{ description: 'Flying Saw project', accept: { 'application/json': ['.json'] } }],
+        });
+        const w = await handle.createWritable();
+        await w.write(text);
+        await w.close();
+        projectName = stem(handle.name);
+        showStatus(`Project saved as <b>${esc(handle.name)}</b>.`);
+        return;
+      } catch (e) {
+        if (e.name === 'AbortError') return;   // the dialog was cancelled
+        // not allowed here (e.g. inside a frame): fall back to a download
+      }
+    }
+    download(text, name, 'application/json');
+    projectName = stem(name);
+    showStatus(`Project downloaded as <b>${esc(name)}</b>.`);
+  }
+
+  function importProject(file) {
+    file.text().then(text => {
+      let res;
+      try { res = FSP.fromProject(text, Object.keys(SPEC), valid); } catch (e) { showStatus(`<b>${esc(file.name)}</b>: ${esc(e.message)}`, true); return; }
+      projectName = stem(file.name);
+      setAll(res.params);
+      const bad = res.rejected.map(k => `${SPEC[k].group}: ${SPEC[k].label}`);
+      showStatus(`Opened project <b>${esc(file.name)}</b>.` +
+        (bad.length ? ` ${bad.length === 1 ? 'One value was not valid and uses its default' : `${bad.length} values were not valid and use their defaults`}: ${esc(bad.join(', '))}.` : ''), bad.length > 0);
+    }, () => showStatus(`Could not read <b>${esc(file.name)}</b>.`, true));
+  }
+
+  $('exportProject').addEventListener('click', exportProject);
+  $('importProject').addEventListener('click', () => $('projectFile').click());
+  $('projectFile').addEventListener('change', e => {
+    const file = e.target.files[0];
+    e.target.value = '';   // choosing the same file again still triggers a change
+    if (file) importProject(file);
+  });
+  if (embedded) $('exportProject').hidden = true;
+
+  // Ctrl+S / Ctrl+O, and dropping a project file anywhere on the page. Without the drop handler the
+  // browser (and the Windows program) would leave the page to show the dropped file.
+  document.addEventListener('keydown', e => {
+    if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey) return;
+    const key = e.key.toLowerCase();
+    if (key === 's' && !embedded) { e.preventDefault(); exportProject(); }
+    else if (key === 'o') { e.preventDefault(); $('projectFile').click(); }
+  });
+  const hasFiles = e => e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files');
+  document.addEventListener('dragover', e => { if (hasFiles(e)) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } });
+  document.addEventListener('drop', e => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    if (file) importProject(file);
   });
 
   /* ---------- boot ---------- */

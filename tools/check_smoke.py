@@ -16,7 +16,10 @@ checks = {
     'settings can be saved': report['storage'],
     'embedded fonts are used': report['fonts'],
     '"Copy link" is hidden': report['copyLinkHidden'],
+    'project buttons are shown': report['projectButtons'],
+    'a dropped project file is imported': report['importedMpm'] == 12.5,
 }
+print('info system "Save as" dialog available:', report['saveDialog'])
 for name, ok in checks.items():
     print(('ok   ' if ok else 'FAIL ') + name)
 sys.exit(0 if all(checks.values()) else 1)

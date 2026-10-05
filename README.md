@@ -38,9 +38,13 @@ computer; nothing is sent anywhere.
   drag to scrub the animation.
 - **Export**: copy or download the sampled motion profile as CSV (time, position, speed, acceleration,
   motor rpm, torque, blade position, phase).
+- **Projects**: *Export project* saves all machine data to a `.json` file (with a normal *Save as*
+  dialog in the Windows program, Chrome and Edge; a download elsewhere), *Import project* opens one
+  again. `Ctrl+S` and `Ctrl+O` do the same, and you can also drop a project file onto the window.
+  Fields missing from an older project file get their defaults.
 - **Sharing**: every change is saved in the browser and in the page link, so *Copy link* shares the exact
   setup when the page is hosted online (the exe and the HTML file have no shareable link, so the button is
-  hidden there). *Reset to defaults* brings back the example values.
+  hidden there; send a project file instead). *Reset to defaults* brings back the example values.
 
 Keyboard: `Space` play / pause, `←` `→` step through the cycle (`Shift` for bigger steps).
 
@@ -70,9 +74,10 @@ moves and servo following error. Leave some reserve.
 | `styles.css` | Styles, light and dark theme |
 | `motion.js` | Motion maths, no DOM (also loadable from Node) |
 | `app.js` | Inputs, verdict, timeline, animation and charts |
+| `project.js` | Project file format (export / import), no DOM |
 | `fonts/` | Barlow fonts (SIL Open Font License), so nothing loads from the internet |
 | `assets/` | App icon (`icon.svg` is the source, `icon-small.svg` the simplified 16–32 px version) |
-| `tests/motion.test.js` | Unit tests for the maths |
+| `tests/` | Unit tests for the maths and the project files |
 | `build.py` | Builds the single HTML file, the exe and the installer into `dist/` |
 | `desktop/` | The Windows program (Go): a window that shows the single HTML file |
 | `installer/FlyingSaw.nsi` | The installer (NSIS) |
