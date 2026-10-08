@@ -64,12 +64,13 @@
   const valid = (k, x) => Number.isFinite(x) && (x > 0 || (SPEC[k].zero && x === 0)) && !(SPEC[k].max != null && x > SPEC[k].max);
   const invalidMsg = k => SPEC[k].max != null ? `Enter a value above 0 and up to ${SPEC[k].max}.` : SPEC[k].zero ? 'Enter 0 or a positive number.' : 'Enter a number greater than 0.';
 
-  // Parameters: defaults, then the last saved setup, then a shared link (the link wins).
+  // Parameters: the defaults plus either a shared link or, without one, the last saved setup. A link holds
+  // every value that differs from the defaults, so a value it leaves out is the default, not the saved one.
   const STORE = 'flying-saw-simulator/v1';
   const p = { ...FS.DEFAULTS };
   const merge = obj => { for (const k in SPEC) if (Object.prototype.hasOwnProperty.call(obj, k)) { const x = Number(obj[k]); if (valid(k, x)) p[k] = x; } };
-  try { const saved = JSON.parse(localStorage.getItem(STORE) || 'null'); if (saved && typeof saved === 'object') merge(saved); } catch (e) { /* storage blocked */ }
   if (location.hash.includes('=')) merge(Object.fromEntries(new URLSearchParams(location.hash.slice(1))));
+  else try { const saved = JSON.parse(localStorage.getItem(STORE) || 'null'); if (saved && typeof saved === 'object') merge(saved); } catch (e) { /* storage blocked */ }
 
   const inputs = {};
   for (const [title, fields, info] of GROUPS) {
