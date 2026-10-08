@@ -4,7 +4,7 @@
   "private": true,
   "description": "Cycle calculator and live simulation for a flying saw",
   "scripts": {
-    "test": "node --test tests/motion.test.js tests/project.test.js",
+    "test": "node --test tests/motion.test.js tests/project.test.js tests/build.test.js",
     "start": "python3 -m http.server 8000",
     "build": "python3 build.py"
   }

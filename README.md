@@ -85,7 +85,7 @@ moves and servo following error. Leave some reserve.
 ## Development
 
 ```sh
-npm test      # runs the unit tests (Node 18+)
+npm test      # runs the unit tests and builds dist/FlyingSaw.html to check it is self-contained (Node 18+, Python 3)
 npm start     # serves the folder on http://localhost:8000 (optional, index.html also works from disk)
 ```
 
