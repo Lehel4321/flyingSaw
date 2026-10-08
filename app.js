@@ -326,8 +326,11 @@
   }
   function showTip(s, el) {
     tip.innerHTML = `<b>${ms(s.t)}</b> ${s.label}`;
-    tip.style.left = `calc(${el.style.left} + ${el.offsetWidth / 2}px)`;
     tip.hidden = false;
+    // Centred over the segment, but kept inside the timeline: on a phone the first and last segments
+    // sit close to the screen edge, and the tip would be cut off or make the page scroll sideways.
+    const half = tip.offsetWidth / 2, W = $('btrack').clientWidth;
+    tip.style.left = Math.max(half, Math.min(W - half, el.offsetLeft + el.offsetWidth / 2)) + 'px';
   }
   function hideTip() { if (tip) tip.hidden = true; }
 
